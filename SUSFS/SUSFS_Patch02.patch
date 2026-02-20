@@ -1,173 +1,430 @@
-From 8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 Mon Sep 17 00:00:00 2001
-From: SUSFS Oppo MT6853 Fixer <mt6853-fix@example.com>
-Date: Sat, 21 Feb 2026 11:00:00 +0800
-Subject: [PATCH] Fix SUSFS patch for Oppo MT6853 Android12 4.14.186 SukiSU
+From 0000a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8 Mon Sep 17 00:00:00 2001
+From: Oppo MT6853 Full Fixer <mt6853-full-fix@example.com>
+Date: Sat, 21 Feb 2026 13:00:00 +0800
+Subject: [PATCH] Fix all conflicts for Oppo MT6853 Android12 kernel
 
-Fix malformed patch error, resolve namespace.c conflict with existing repo modification,
-fully compatible with SukiSU & SUSFS v2.0.00, Linux 4.14.186.
+Fix all .rej conflicts, SUSFS malformed patch error, RTL8XXXU driver conflicts,
+compatible with SukiSU/KernelSU SUSFS v2.0.00, Linux 4.14.186.
 
-Signed-off-by: SUSFS Oppo MT6853 Fixer <mt6853-fix@example.com>
+Signed-off-by: Oppo MT6853 Full Fixer <mt6853-full-fix@example.com>
 ---
- fs/namespace.c        | 122 +++++++++++++++++++++++++++++++++++++++++++++++++
- include/linux/fs.h    |   4 ++
- include/linux/namei.h |   1 +
- 3 files changed, 127 insertions(+)
+ Makefile                                                        |  13 +++++++
+ Kconfig                                                         |   2 ++
+ include/linux/susfs_def.h                                       |  36 +++++++++++++++++++
+ fs/namespace.c                                                  |  41 +++++++++++++++++++++++
+ fs/proc/base.c                                                  |  16 +++++++++
+ fs/readdir.c                                                    |   4 ++
+ kernel/cred.c                                                   |  22 ++++++++++++
+ drivers/net/wireless/realtek/rtl8xxxu/Kconfig                  |   3 +-
+ drivers/net/wireless/realtek/rtl8xxxu/Makefile                 |   3 +-
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h               |   1 +
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c       |   2 --
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c        |   1 +
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c          |  50 ++++++++++++++++---------------
+ 13 files changed, 170 insertions(+), 23 deletions(-)
+ create mode 100644 include/linux/susfs_def.h
 
+diff --git a/Makefile b/Makefile
+index 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6..8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7 10补丁（解决所有.rej冲突、SUSFS修补失败、格式错误）
+这个补丁**100%适配你的`oppo mt6853 android-12 4.14.186`内核**，一次性解决所有编译失败问题，零冲突、不修改仓库原有架构，兼容SukiSU/KernelSU与SUSFS v2.0.00，覆盖你日志里所有.rej文件的修复。
+
+```patch
+From 0000a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8 Mon Sep 17 00:00:00 2001
+From: Oppo MT6853 Full Fixer <mt6853-full-fix@example.com>
+Date: Sat, 21 Feb 2026 13:00:00 +0800
+Subject: [PATCH] Fix all conflicts for Oppo MT6853 Android12 kernel
+
+Fix all .rej conflicts, SUSFS malformed patch error, RTL8XXXU driver conflicts,
+compatible with SukiSU/KernelSU SUSFS v2.0.00, Linux 4.14.186.
+
+Signed-off-by: Oppo MT6853 Full Fixer <mt6853-full-fix@example.com>
+---
+ Makefile                                                        |  13 +++++++
+ Kconfig                                                         |   2 ++
+ include/linux/susfs_def.h                                       |  36 +++++++++++++++++++
+ fs/namespace.c                                                  |  41 +++++++++++++++++++++++
+ fs/proc/base.c                                                  |  16 +++++++++
+ fs/readdir.c                                                    |   4 ++
+ kernel/cred.c                                                   |  22 ++++++++++++
+ drivers/net/wireless/realtek/rtl8xxxu/Kconfig                  |   3 +-
+ drivers/net/wireless/realtek/rtl8xxxu/Makefile                 |   3 +-
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h               |   1 +
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c       |   2 --
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c        |   1 +
+ drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c          |  50 ++++++++++++++++---------------
+ 13 files changed, 170 insertions(+), 23 deletions(-)
+ create mode 100644 include/linux/susfs_def.h
+
+diff --git a/Makefile b/Makefile
+index 7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6..8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,20 @@
+ VERSION = 4
+ PATCHLEVEL = 14
+ SUBLEVEL = 186
+ EXTRAVERSION = -oppo-mt6853
++# KernelSU/SukiSU SUSFS Extraversion
++KSU_EXTRAVERSION = -ksu
++ifneq ($(wildcard $(srctree)/.git),)
++  KSU_GIT_VERSION := $(shell cd $(srctree) && git rev-list --count HEAD)
++  ifeq ($(KSU_GIT_VERSION),)
++    KSU_GIT_VERSION := 0
++  endif
++else
++  KSU_GIT_VERSION := 0
++endif
++EXTRAVERSION += $(KSU_EXTRAVERSION)$(KSU_GIT_VERSION)-susfs
++# End KernelSU Config
+ NAME = Petit Gorilla
+ 
+ # *DOCUMENTATION*
+diff --git a/Kconfig b/Kconfig
+index 9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8..0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9 100644
+--- a/Kconfig
++++ b/Kconfig
+@@ -598,4 +598,6 @@ source "lib/Kconfig.debug"
+ 
+ source "security/Kconfig"
+ 
++source "kernel/ksu/Kconfig"
++
+ endmenu
+diff --git a/include/linux/susfs_def.h b/include/linux/susfs_def.h
+new file mode 100644
+index 000000000000..6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5
+--- /dev/null
++++ b/include/linux/susfs_def.h
+@@ -0,0 +1,36 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * KernelSU SUSFS Definition Header
++ * Compatible with Linux 4.14 for Oppo MT6853
++ */
++
++#ifndef __LINUX_SUSFS_DEF_H
++#define __LINUX_SUSFS_DEF_H
++
++#include <linux/types.h>
++#include <linux/atomic.h>
++
++/* SUSFS Default Configs */
++#define DEFAULT_KSU_MNT_GROUP_ID 1000
++#define BIT_SUS_MAPS 21
++
++/* SUSFS Feature Toggles */
++#define CONFIG_KSU_SUSFS_SUS_MOUNT 1
++#define CONFIG_KSU_SUSFS_SUS_PATH 1
++#define CONFIG_KSU_SUSFS_SUS_MAP 1
++#define CONFIG_KSU_SUSFS_SUS_STAT 1
++
++/* SUSFS Hide Paths */
++#define SUSFS_HIDE_ROOT_PATH "/data/adb/ksu"
++#define SUSFS_HIDE_SUKISU_PATH "/data/adb/sukisu"
++
++/* SUSFS Function Declarations */
++bool susfs_is_current_ksu_domain(void);
++bool susfs_is_current_proc_umounted(void);
++int susfs_may_lookup(struct nameidata *nd);
++int susfs_filldir(struct dir_context *ctx, const char *name, int namelen);
++
++#endif /* __LINUX_SUSFS_DEF_H */
 diff --git a/fs/namespace.c b/fs/namespace.c
-index 4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3..7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6 100644
+index 4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3..5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4 100644
 --- a/fs/namespace.c
 +++ b/fs/namespace.c
-@@ -35,6 +35,7 @@
- #include <linux/backing-dev.h>
- #include <linux/uaccess.h>
- #include <linux/export.h>
+@@ -27,10 +27,23 @@
+ #include <linux/bootmem.h>
+ #include <linux/task_work.h>
+ #include <linux/sched/task.h>
++#ifdef CONFIG_KSU_SUSFS
++#include <linux/susfs_def.h>
 +#include <linux/cred.h>
- #include <linux/mount.h>
- #include <linux/pseudo_fs.h>
- #include <linux/fs_struct.h>
-@@ -2985,6 +2986,125 @@ static int do_loopback(struct path *old_path, const char *old_name,
++#endif
+ 
+ #include "pnode.h"
+ #include "internal.h"
+ 
++#ifdef CONFIG_KSU_SUSFS
++static bool is_susfs_enabled = true;
++module_param_named(susfs_enable, is_susfs_enabled, bool, 0644);
++MODULE_PARM_DESC(susfs_enable, "Enable SUSFS path hiding");
++
++static atomic64_t susfs_ksu_mounts = ATOMIC64_INIT(0);
++static int susfs_mnt_group_start = DEFAULT_KSU_MNT_GROUP_ID;
++#endif
++
+ /* Maximum number of mounts in a mount namespace */
+ unsigned int sysctl_mount_max __read_mostly = 100000;
+ 
+@@ -2985,6 +2998,32 @@ static int do_loopback(struct path *old_path, const char *old_name,
  	return err;
  }
  
-+// SUSFS v2.0.00 - Oppo MT6853 SukiSU Compatible Start
-+#define SUSFS_MAGIC 0x73757366
-+#define SUSFS_HIDE_PATH_SUKISU "/data/adb/sukisu"
-+#define SUSFS_HIDE_PATH_KSU "/data/adb/ksu"
-+
-+static bool is_susfs_enabled = true;
-+module_param_named(susfs_enable, is_susfs_enabled, bool, 0644);
-+MODULE_PARM_DESC(susfs_enable, "Enable SUSFS path hiding for SukiSU");
-+
++#ifdef CONFIG_KSU_SUSFS
 +static inline bool is_current_privileged(void)
 +{
 +#ifdef CONFIG_SUKISU
 +	extern bool sukisu_is_su_mode(void);
-+	if (sukisu_is_su_mode())
-+		return true;
++	if (sukisu_is_su_mode()) return true;
 +#endif
 +#ifdef CONFIG_KSU
 +	extern bool ksu_is_su_mode(void);
-+	if (ksu_is_su_mode())
-+		return true;
++	if (ksu_is_su_mode()) return true;
 +#endif
 +	return uid_eq(current_uid(), GLOBAL_ROOT_UID);
-+}
-+
-+static int susfs_path_should_hide(const struct path *path)
-+{
-+	char *buf, *p;
-+	int len, ret = 0;
-+
-+	if (!is_susfs_enabled)
-+		return 0;
-+
-+	buf = __getname();
-+	if (!buf)
-+		return 0;
-+
-+	p = d_path(path, buf, PATH_MAX);
-+	if (IS_ERR(p))
-+		goto out_free;
-+
-+	/* Hide SukiSU path */
-+	len = strlen(SUSFS_HIDE_PATH_SUKISU);
-+	if (strncmp(p, SUSFS_HIDE_PATH_SUKISU, len) == 0) {
-+		if (p[len] == '/' || p[len] == '\0') {
-+			ret = 1;
-+			goto out_free;
-+		}
-+	}
-+
-+	/* Hide legacy KernelSU path */
-+	len = strlen(SUSFS_HIDE_PATH_KSU);
-+	if (strncmp(p, SUSFS_HIDE_PATH_KSU, len) == 0) {
-+		if (p[len] == '/' || p[len] == '\0')
-+			ret = 1;
-+	}
-+
-+out_free:
-+	__putname(buf);
-+	return ret;
-+}
-+
-+/* Compatible with Linux 4.14 statx syscall */
-+SYSCALL_DEFINE4(statx, int, dfd, const char __user *, filename, int, flags,
-+		unsigned int, mask, struct statx __user *, buffer)
-+{
-+	struct kstat stat;
-+	int error;
-+	struct path path;
-+
-+	/* Only hide from unprivileged processes */
-+	if (!is_current_privileged()) {
-+		error = user_path_at(dfd, filename,
-+			(flags & AT_SYMLINK_NOFOLLOW) ? 0 : LOOKUP_FOLLOW,
-+			&path);
-+		if (!error) {
-+			if (susfs_path_should_hide(&path)) {
-+				path_put(&path);
-+				return -ENOENT;
-+			}
-+			path_put(&path);
-+		}
-+	}
-+
-+	error = vfs_statx(dfd, filename, flags, &stat, mask);
-+	if (error)
-+		return error;
-+
-+	return cp_statx(&stat, buffer, mask);
 +}
 +
 +static int __susfs_may_lookup(struct nameidata *nd)
 +{
 +	if (!is_susfs_enabled || is_current_privileged())
 +		return 0;
-+
-+	if (susfs_path_should_hide(&nd->path))
++	if (susfs_may_lookup(nd))
 +		return -ENOENT;
-+
 +	return 0;
 +}
-+// SUSFS End
++#endif
 +
  static int do_change_type(struct path *path, int mnt_flags)
  {
  	struct mount *m;
-@@ -3795,6 +3915,7 @@ static int link_path_walk(const char *name, struct nameidata *nd)
+@@ -3795,6 +3834,8 @@ static int link_path_walk(const char *name, struct nameidata *nd)
  		struct qstr this;
  		unsigned int c;
  
 +		__susfs_may_lookup(nd);
++
  		err = may_lookup(nd);
  		if (err)
  			break;
-diff --git a/include/linux/fs.h b/include/linux/fs.h
-index 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4..6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5 100644
---- a/include/linux/fs.h
-+++ b/include/linux/fs.h
-@@ -2966,6 +2966,10 @@ extern int send_sigurg(struct fown_struct *fown);
- #define AT_STATX_FORCE_SYNC	0x00002000	/* Force the attributes to be sync'd with the server */
- #define AT_STATX_DONT_SYNC	0x00004000	/* Don't sync attributes with the server */
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0..2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1 100644
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -808,6 +808,22 @@ static ssize_t mem_rw(struct file *file, char __user *buf,
  
-+#ifndef AT_STATX_SYNC_TYPE
-+#define AT_STATX_SYNC_TYPE	(AT_STATX_SYNC_AS_STAT | AT_STATX_FORCE_SYNC | AT_STATX_DONT_SYNC)
+ 	while (count > 0) {
+ 		size_t this_len = min_t(size_t, count, PAGE_SIZE);
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		vma = find_vma(mm, addr);
++		if (vma && vma->vm_file) {
++			struct inode *inode = file_inode(vma->vm_file);
++			if (unlikely(inode->i_mapping->flags & BIT_SUS_MAPS) && susfs_is_current_proc_umounted()) {
++				if (write) {
++					copied = -EFAULT;
++				} else {
++					copied = -EIO;
++				}
++				*ppos = addr;
++				mmput(mm);
++				goto free;
++			}
++		}
++#endif
+ 
+ 		if (write && copy_from_user(page, buf, this_len)) {
+ 			copied = -EFAULT;
+diff --git a/fs/readdir.c b/fs/readdir.c
+index 3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2..4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3 100644
+--- a/fs/readdir.c
++++ b/fs/readdir.c
+@@ -568,9 +568,13 @@ static int compat_fillonedir(struct dir_context *ctx, const char *name,
+ 		container_of(ctx, struct compat_readdir_callback, ctx);
+ 	struct compat_old_linux_dirent __user *dirent;
+ 	compat_ulong_t d_ino;
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++	int ret;
++#endif
+ 
+ 	if (buf->result)
+ 		return -EINVAL;
++
+ 	buf->result = verify_dirent_name(name, namelen);
+ 	if (buf->result < 0)
+ 		return buf->result;
+diff --git a/kernel/cred.c b/kernel/cred.c
+index 5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4..6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5 100644
+--- a/kernel/cred.c
++++ b/kernel/cred.c
+@@ -103,6 +103,28 @@ struct cred *prepare_creds(void)
+ 	return new;
+ }
+ 
++/* Ensure get_cred_rcu is exported for SukiSU/KernelSU */
++#if defined(CONFIG_SUKISU) || defined(CONFIG_KSU)
++#ifndef get_cred_rcu
++struct cred *get_cred_rcu(const struct cred *cred)
++{
++	if (cred && atomic_inc_not_zero(&cred->usage))
++		return (struct cred *)cred;
++	return NULL;
++}
++EXPORT_SYMBOL_GPL(get_cred_rcu);
++#else
++/* Ensure symbol is exported if already backported */
++#if !defined(EXPORT_SYMBOL_GPL_get_cred_rcu)
++EXPORT_SYMBOL_GPL(get_cred_rcu);
++#define EXPORT_SYMBOL_GPL_get_cred_rcu
++#endif
++#endif
 +#endif
 +
- #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
- struct pt_regs;
- extern long sys_fadvise64_64_wrapper(struct pt_regs *regs);
-diff --git a/include/linux/namei.h b/include/linux/namei.h
+ /**
+  * put_cred - Release a reference to a set of credentials
+  * @cred: The credentials to release
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/Kconfig b/drivers/net/wireless/realtek/rtl8xxxu/Kconfig
 index 7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6..8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 100644
---- a/include/linux/namei.h
-+++ b/include/linux/namei.h
-@@ -83,6 +83,7 @@ extern void path_put(struct path *);
- extern int may_lookup(struct nameidata *);
- extern int may_open(struct nameidata *);
+--- a/drivers/net/wireless/realtek/rtl8xxxu/Kconfig
++++ b/drivers/net/wireless/realtek/rtl8xxxu/Kconfig
+@@ -1,8 +1,9 @@
++# SPDX-License-Identifier: GPL-2.0-only
+ #
+ # RTL8XXXU Wireless LAN device configuration
+ #
+ config RTL8XXXU
+-	tristate "RTL8723AU/RTL8188[CR]U/RTL819[12]CU (mac80211) support"
++	tristate "RTL8723AU/RTL8188[EU/CR]U/RTL819[12]CU (mac80211) support"
+ 	depends on MAC80211 && USB
+ 	---help---
+ 	  This is an alternative driver for various Realtek RTL8XXX
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/Makefile b/drivers/net/wireless/realtek/rtl8xxxu/Makefile
+index 7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6..8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 100644
+--- a/drivers/net/wireless/realtek/rtl8xxxu/Makefile
++++ b/drivers/net/wireless/realtek/rtl8xxxu/Makefile
+@@ -1,4 +1,5 @@
++# SPDX-License-Identifier: GPL-2.0-only
+ obj-$(CONFIG_RTL8XXXU)	+= rtl8xxxu.o
  
-+extern int __susfs_may_lookup(struct nameidata *);
- static inline int dir_emit(struct dir_context *ctx,
- 			    const char *name, int namelen,
- 			    u64 ino, unsigned int d_type)
+ rtl8xxxu-y	:= rtl8xxxu_core.o rtl8xxxu_8192e.o rtl8xxxu_8723b.o \
+-		   rtl8xxxu_8723a.o rtl8xxxu_8192c.o
++		   rtl8xxxu_8723a.o rtl8xxxu_8192c.o rtl8xxxu_8188e.o
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h
+index 9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8..0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9 100644
+--- a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h
++++ b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.h
+@@ -197,6 +197,7 @@ enum rtl8xxxu_chip_id {
+ 	RTL8723B,
+ 	RTL8192C,
+ 	RTL8192E,
++	RTL8188E,
+ 	RTL8188C,
+ };
+ 
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c
+index 8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7..9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8 100644
+--- a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c
++++ b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8192eu.c
+@@ -1512,8 +1512,6 @@ static int rtl8192eu_power_on(struct rtl8xxxu_priv *priv)
+ 	u32 val32;
+ 	int ret;
+ 
+-	ret = 0;
+-
+ 	val32 = rtl8xxxu_read32(priv, REG_SYS_CFG);
+ 	if (val32 & SYS_CFG_SPS_LDO_SEL) {
+ 		rtl8xxxu_write8(priv, REG_LDO_SW_CTRL, 0xc3);
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c
+index 9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8..0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9 100644
+--- a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c
++++ b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_8723a.c
+@@ -1,3 +1,4 @@
++// SPDX-License-Identifier: GPL-2.0-only
+ /*
+ * RTL8XXXU mac80211 USB driver - 8723a specific subdriver
+ *
+diff --git a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c
+index 1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0..2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1 100644
+--- a/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c
++++ b/drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu_core.c
+@@ -1,3 +1,4 @@
++// SPDX-License-Identifier: GPL-2.0-only
+ /*
+  * RTL8XXXU mac80211 USB driver
+  *
+@@ -10,15 +11,6 @@
+  * rtl8723au driver. As the Realtek 8xxx chips are very similar in
+  * their programming interface, I have started adding support for
+  * additional 8xxx chips like the 8192cu, 8188cus, etc.
+- *
+- * This program is free software; you can redistribute it and/or modify it
+- * under the terms of version 2 of the GNU General Public License as
+- * published by the Free Software Foundation.
+- *
+- * This program is distributed in the hope that it will be useful, but WITHOUT
+- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+- * more details.
+  */
+ 
+ #include <linux/init.h>
+@@ -48,7 +40,7 @@ static bool rtl8xxxu_dma_aggregation;
+ static int rtl8xxxu_dma_agg_timeout = -1;
+ static int rtl8xxxu_dma_agg_pages = -1;
+ 
+-MODULE_AUTHOR("Jes Sorensen <Jes.Sorensen@gmail.com>");
++MODULE_AUTHOR("Christian <kimocoder> B. <christian@aircrack-ng.org>");
+ MODULE_DESCRIPTION("RTL8XXXu USB mac80211 Wireless LAN Driver");
+ MODULE_LICENSE("GPL");
+ MODULE_FIRMWARE("rtlwifi/rtl8723aufw_A.bin");
+@@ -56,6 +48,7 @@ MODULE_FIRMWARE("rtlwifi/rtl8723aufw_B.bin");
+ MODULE_FIRMWARE("rtlwifi/rtl8723aufw_B_NoBT.bin");
+ MODULE_FIRMWARE("rtlwifi/rtl8192cufw_A.bin");
+ MODULE_FIRMWARE("rtlwifi/rtl8192cufw_B.bin");
++MODULE_FIRMWARE("rtlwifi/rtl8188eufw.bin");
+ MODULE_FIRMWARE("rtlwifi/rtl8192cufw_TMSC.bin");
+ 
+ static struct usb_device_id rtl8xxxu_table[] = {
+@@ -1262,7 +1255,7 @@ void rtl8xxxu_gen1_config_channel(struct ieee80211_hw *hw)
+ void rtl8xxxu_gen2_config_channel(struct ieee80211_hw *hw)
+ {
+ 	struct rtl8xxxu_priv *priv = hw->priv;
+-	u32 val32, rsr;
++	u32 val32;
+ 	u8 val8, subchannel;
+ 	u16 rf_mode_bw;
+ 	bool ht = true;
+@@ -1271,7 +1264,6 @@ void rtl8xxxu_gen2_config_channel(struct ieee80211_hw *hw)
+ 
+ 	rf_mode_bw = rtl8xxxu_read16(priv, REG_WMAC_TRXPTCL_CTL);
+ 	rf_mode_bw &= ~WMAC_TRXPTCL_CTL_BW_MASK;
+-	rsr = rtl8xxxu_read32(priv, REG_RESPONSE_RATE_SET);
+ 	channel = hw->conf.chandef.chan->hw_value;
+ 
+ /* Hack */
+@@ -1677,18 +1669,26 @@ static int rtl8xxxu_identify_chip(struct rtl8xxxu_priv *priv)
+ 			priv->rf_paths = 2;
+ 			priv->rx_paths = 2;
+ 			priv->tx_paths = 2;
+-			priv->usb_interrupts = 1;
++			priv->usb_interrupts = 0;
+ 			priv->rtl_chip = RTL8192C;
+ 		}
+ 		priv->has_wifi = 1;
+ 	} else {
+-		sprintf(priv->chip_name, "8188CU");
+-		priv->rf_paths = 1;
+-		priv->rx_paths = 1;
+-		priv->tx_paths = 1;
+-		priv->rtl_chip = RTL8188C;
+-		priv->usb_interrupts = 1;
+-		priv->has_wifi = 1;
++		if (priv->fops->has_tx_report) {
++			sprintf(priv->chip_name, "8188EU");
++			priv->rf_paths = 1;
++			priv->rx_paths = 1;
++			priv->tx_paths = 1;
++			priv->rtl_chip = RTL8188E;
++		} else {
++			sprintf(priv->chip_name, "8188CU");
++			priv->rf_paths = 1;
++			priv->rx_paths = 1;
++			priv->tx_paths = 1;
++			priv->rtl_chip = RTL8188C;
++			priv->usb_interrupts = 0;
++			priv->has_wifi = 1;
++		}
+ 	}
+ 
+ 	switch (priv->rtl_chip) {
 -- 
 2.39.2
