@@ -1,0 +1,68 @@
+--- fs/proc/task_mmu.c
++++ fs/proc/task_mmu.c
+@@ -20,6 +20,9 @@
+ #include <linux/uaccess.h>
+ #include <linux/mm_inline.h>
+ #include <linux/ctype.h>
++#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
++#include <linux/susfs_def.h>
++#endif
+ 
+ #include <asm/elf.h>
+ #include <asm/tlb.h>
+@@ -897,6 +913,20 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 	}
+ 
+ 	if (!rollup_mode)
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		if (vma->vm_file &&
++			unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
++			susfs_is_current_proc_umounted())
++		{
++			seq_printf(m,
++				"Size:           %8lu kB\n"
++				"KernelPageSize: %8lu kB\n"
++				"MMUPageSize:    %8lu kB\n",
++				(vma->vm_end - vma->vm_start) >> 10,
++				4, 4);
++			goto bypass_orig_flow;
++		}
++#endif
+ 		seq_printf(m,
+ 			   "Size:           %8lu kB\n"
+ 			   "KernelPageSize: %8lu kB\n"
+@@ -904,8 +934,9 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 			   (vma->vm_end - vma->vm_start) >> 10,
+ 			   vma_kernel_pagesize(vma) >> 10,
+ 			   vma_mmu_pagesize(vma) >> 10);
+-
+-
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++bypass_orig_flow:
++#endif
+ 	if (!rollup_mode || last_vma)
+ 		seq_printf(m,
+ 			   "Rss:            %8lu kB\n"
+@@ -942,9 +973,22 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
+ 			   (unsigned long)(mss->pss_locked >> (10 + PSS_SHIFT)));
+ 
+ 	if (!rollup_mode) {
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++		if (vma->vm_file &&
++			unlikely(file_inode(vma->vm_file)->i_mapping->flags & BIT_SUS_MAPS) &&
++			susfs_is_current_proc_umounted())
++		{
++			seq_puts(m, "VmFlags: mr mw me");
++			seq_putc(m, '\n');
++			goto bypass_orig_flow2;
++		}
++#endif
+ 		arch_show_smap(m, vma);
+ 		show_smap_vma_flags(m, vma);
+ 	}
++#ifdef CONFIG_KSU_SUSFS_SUS_MAP
++bypass_orig_flow2:
++#endif
+ 	m_cache_vma(m, vma);
+ 	return ret;
+ }
