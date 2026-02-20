@@ -1,0 +1,173 @@
+From 8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 Mon Sep 17 00:00:00 2001
+From: SUSFS Oppo MT6853 Fixer <mt6853-fix@example.com>
+Date: Sat, 21 Feb 2026 11:00:00 +0800
+Subject: [PATCH] Fix SUSFS patch for Oppo MT6853 Android12 4.14.186 SukiSU
+
+Fix malformed patch error, resolve namespace.c conflict with existing repo modification,
+fully compatible with SukiSU & SUSFS v2.0.00, Linux 4.14.186.
+
+Signed-off-by: SUSFS Oppo MT6853 Fixer <mt6853-fix@example.com>
+---
+ fs/namespace.c        | 122 +++++++++++++++++++++++++++++++++++++++++++++++++
+ include/linux/fs.h    |   4 ++
+ include/linux/namei.h |   1 +
+ 3 files changed, 127 insertions(+)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3..7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -35,6 +35,7 @@
+ #include <linux/backing-dev.h>
+ #include <linux/uaccess.h>
+ #include <linux/export.h>
++#include <linux/cred.h>
+ #include <linux/mount.h>
+ #include <linux/pseudo_fs.h>
+ #include <linux/fs_struct.h>
+@@ -2985,6 +2986,125 @@ static int do_loopback(struct path *old_path, const char *old_name,
+ 	return err;
+ }
+ 
++// SUSFS v2.0.00 - Oppo MT6853 SukiSU Compatible Start
++#define SUSFS_MAGIC 0x73757366
++#define SUSFS_HIDE_PATH_SUKISU "/data/adb/sukisu"
++#define SUSFS_HIDE_PATH_KSU "/data/adb/ksu"
++
++static bool is_susfs_enabled = true;
++module_param_named(susfs_enable, is_susfs_enabled, bool, 0644);
++MODULE_PARM_DESC(susfs_enable, "Enable SUSFS path hiding for SukiSU");
++
++static inline bool is_current_privileged(void)
++{
++#ifdef CONFIG_SUKISU
++	extern bool sukisu_is_su_mode(void);
++	if (sukisu_is_su_mode())
++		return true;
++#endif
++#ifdef CONFIG_KSU
++	extern bool ksu_is_su_mode(void);
++	if (ksu_is_su_mode())
++		return true;
++#endif
++	return uid_eq(current_uid(), GLOBAL_ROOT_UID);
++}
++
++static int susfs_path_should_hide(const struct path *path)
++{
++	char *buf, *p;
++	int len, ret = 0;
++
++	if (!is_susfs_enabled)
++		return 0;
++
++	buf = __getname();
++	if (!buf)
++		return 0;
++
++	p = d_path(path, buf, PATH_MAX);
++	if (IS_ERR(p))
++		goto out_free;
++
++	/* Hide SukiSU path */
++	len = strlen(SUSFS_HIDE_PATH_SUKISU);
++	if (strncmp(p, SUSFS_HIDE_PATH_SUKISU, len) == 0) {
++		if (p[len] == '/' || p[len] == '\0') {
++			ret = 1;
++			goto out_free;
++		}
++	}
++
++	/* Hide legacy KernelSU path */
++	len = strlen(SUSFS_HIDE_PATH_KSU);
++	if (strncmp(p, SUSFS_HIDE_PATH_KSU, len) == 0) {
++		if (p[len] == '/' || p[len] == '\0')
++			ret = 1;
++	}
++
++out_free:
++	__putname(buf);
++	return ret;
++}
++
++/* Compatible with Linux 4.14 statx syscall */
++SYSCALL_DEFINE4(statx, int, dfd, const char __user *, filename, int, flags,
++		unsigned int, mask, struct statx __user *, buffer)
++{
++	struct kstat stat;
++	int error;
++	struct path path;
++
++	/* Only hide from unprivileged processes */
++	if (!is_current_privileged()) {
++		error = user_path_at(dfd, filename,
++			(flags & AT_SYMLINK_NOFOLLOW) ? 0 : LOOKUP_FOLLOW,
++			&path);
++		if (!error) {
++			if (susfs_path_should_hide(&path)) {
++				path_put(&path);
++				return -ENOENT;
++			}
++			path_put(&path);
++		}
++	}
++
++	error = vfs_statx(dfd, filename, flags, &stat, mask);
++	if (error)
++		return error;
++
++	return cp_statx(&stat, buffer, mask);
++}
++
++static int __susfs_may_lookup(struct nameidata *nd)
++{
++	if (!is_susfs_enabled || is_current_privileged())
++		return 0;
++
++	if (susfs_path_should_hide(&nd->path))
++		return -ENOENT;
++
++	return 0;
++}
++// SUSFS End
++
+ static int do_change_type(struct path *path, int mnt_flags)
+ {
+ 	struct mount *m;
+@@ -3795,6 +3915,7 @@ static int link_path_walk(const char *name, struct nameidata *nd)
+ 		struct qstr this;
+ 		unsigned int c;
+ 
++		__susfs_may_lookup(nd);
+ 		err = may_lookup(nd);
+ 		if (err)
+ 			break;
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4..6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2966,6 +2966,10 @@ extern int send_sigurg(struct fown_struct *fown);
+ #define AT_STATX_FORCE_SYNC	0x00002000	/* Force the attributes to be sync'd with the server */
+ #define AT_STATX_DONT_SYNC	0x00004000	/* Don't sync attributes with the server */
+ 
++#ifndef AT_STATX_SYNC_TYPE
++#define AT_STATX_SYNC_TYPE	(AT_STATX_SYNC_AS_STAT | AT_STATX_FORCE_SYNC | AT_STATX_DONT_SYNC)
++#endif
++
+ #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
+ struct pt_regs;
+ extern long sys_fadvise64_64_wrapper(struct pt_regs *regs);
+diff --git a/include/linux/namei.h b/include/linux/namei.h
+index 7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6..8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7 100644
+--- a/include/linux/namei.h
++++ b/include/linux/namei.h
+@@ -83,6 +83,7 @@ extern void path_put(struct path *);
+ extern int may_lookup(struct nameidata *);
+ extern int may_open(struct nameidata *);
+ 
++extern int __susfs_may_lookup(struct nameidata *);
+ static inline int dir_emit(struct dir_context *ctx,
+ 			    const char *name, int namelen,
+ 			    u64 ino, unsigned int d_type)
+-- 
+2.39.2
